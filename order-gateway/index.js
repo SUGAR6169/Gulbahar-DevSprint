@@ -14,11 +14,17 @@ redisClient.connect().catch(console.error);
 
 let rabbitChannel;
 async function connectRabbitMQ() {
-  const conn = await amqp.connect('amqp://rabbitmq:5672');
-  rabbitChannel = await conn.createChannel();
-  await rabbitChannel.assertQueue('kitchen_orders');
+  try {
+    const conn = await amqp.connect('amqp://rabbitmq:5672');
+    rabbitChannel = await conn.createChannel();
+    await rabbitChannel.assertQueue('kitchen_orders');
+    console.log('✅ Connected to RabbitMQ successfully!');
+  } catch (err) {
+    console.log('⏳ RabbitMQ not ready yet, retrying in 2 seconds...');
+    setTimeout(connectRabbitMQ, 2000);
+  }
 }
-connectRabbitMQ().catch(console.error);
+connectRabbitMQ();
 
 let totalOrders = 0;
 let failedOrders = 0;
@@ -102,7 +108,22 @@ app.post('/chaos', (req, res) => {
   res.json({ message: 'Gateway killed.' });
   process.exit(1);
 });
-
+// New Endpoint to fetch stock and update Redis cache
+app.get('/stock/:id', async (req, res) => {
+  try {
+    const stockRes = await fetch(`http://stock-service:3000/stock/${req.params.id}`);
+    const data = await stockRes.json();
+    
+    // Keep our Redis cache perfectly in sync with the database!
+    if (data.stock !== undefined) {
+      await redisClient.set(`stock:${req.params.id}`, data.stock);
+    }
+    
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Gateway could not reach Stock Service' });
+  }
+});
 app.get('/health', (req, res) => res.json({ status: 'OK', service: 'order-gateway' }));
 
 app.listen(3000, () => console.log('Order Gateway running on port 3000'));

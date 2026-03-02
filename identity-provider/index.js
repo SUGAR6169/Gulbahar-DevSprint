@@ -25,13 +25,29 @@ const loginLimiter = rateLimit({
 });
 
 // The actual Login Route that the frontend is looking for!
+// A mock database of valid students
+const validUsers = {
+  "200041122": "iftar2026", // Student ID : Password
+  "190041200": "password123",
+  "admin": "admin"
+};
+
 app.post('/login', loginLimiter, (req, res) => {
-  const { studentId } = req.body;
-  if (!studentId) return res.status(400).json({ error: 'Student ID required' });
+  const { studentId, password } = req.body;
   
-  // Issue the secure token
-  const token = jwt.sign({ studentId }, 'SUPER_SECRET', { expiresIn: '1h' });
-  res.json({ token });
+  if (!studentId || !password) {
+    return res.status(400).json({ error: 'Student ID and password are required' });
+  }
+
+  // ACTUALLY CHECK THE CREDENTIALS
+  if (validUsers[studentId] && validUsers[studentId] === password) {
+    // Password is correct, issue the secure token
+    const token = jwt.sign({ studentId }, 'SUPER_SECRET', { expiresIn: '1h' });
+    return res.json({ token });
+  } else {
+    // Password or ID is wrong, reject them!
+    return res.status(401).json({ error: 'Invalid Student ID or Password' });
+  }
 });
 
 app.get('/health', (req, res) => res.json({ status: 'OK', service: 'identity-provider' }));

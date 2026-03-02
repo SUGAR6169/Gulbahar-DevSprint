@@ -69,7 +69,16 @@ app.post('/deduct', async (req, res) => {
     client.release();
   }
 });
-
+// New Endpoint to check current stock
+app.get('/stock/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT stock FROM inventory WHERE id = $1', [req.params.id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ stock: result.rows[0].stock });
+  } catch (err) {
+    res.status(500).json({ error: 'DB error' });
+  }
+});
 app.get('/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
